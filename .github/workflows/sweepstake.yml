@@ -1,0 +1,40 @@
+name: World Cup Sweepstake Update
+
+on:
+  schedule:
+    - cron: '0 20 * * *'   # 08:00 NZT  -> morning post
+    - cron: '0 6 * * *'    # 18:00 NZT  -> evening post
+  workflow_dispatch:
+    inputs:
+      mode:
+        description: 'morning or evening'
+        required: true
+        default: 'morning'
+        type: choice
+        options: [morning, evening]
+
+jobs:
+  send:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: pip install -r requirements.txt
+      - name: Determine mode
+        id: mode
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "mode=${{ github.event.inputs.mode }}" >> "$GITHUB_OUTPUT"
+          elif [ "${{ github.event.schedule }}" = "0 20 * * *" ]; then
+            echo "mode=morning" >> "$GITHUB_OUTPUT"
+          else
+            echo "mode=evening" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Send update
+        env:
+          ANTHROPIC_API_KEY: ${{ secrets.ANTHROPIC_API_KEY }}
+          WECOM_WEBHOOK_URL: ${{ secrets.WECOM_WEBHOOK_URL }}
+          MODE: ${{ steps.mode.outputs.mode }}
+        run: python send_update.py
